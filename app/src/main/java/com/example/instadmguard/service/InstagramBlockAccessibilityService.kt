@@ -36,6 +36,9 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
     private lateinit var overlayController: OverlayController
 
     private var evaluationJob: Job? = null
+    private var keepAliveJob: Job? = null
+    private var evaluationRequested: Boolean = false
+    private var latestEvaluationEventType: Int = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
     private var dailyUsageTickerJob: Job? = null
     private var lastEventSummary: String = ""
     private var lastOverlayDismissedAtMillis: Long = 0L
@@ -60,6 +63,8 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
             screen = InstagramScreen.OTHER,
             message = "Accessibility service connected",
         )
+
+        startKeepAlivePulse()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -78,6 +83,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         evaluationJob?.cancel()
+        keepAliveJob?.cancel()
         dailyUsageTickerJob?.cancel()
         overlayController.dispose()
         serviceScope.cancel()
@@ -129,18 +135,60 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
     }
 
     private fun scheduleEvaluation(eventType: Int) {
-        evaluationJob?.cancel()
+        latestEvaluationEventType = eventType
+        evaluationRequested = true
+
+        if (evaluationJob?.isActive == true) {
+            return
+        }
+
         evaluationJob =
             serviceScope.launch {
-                delay(
-                    when (eventType) {
-                        AccessibilityEvent.TYPE_VIEW_CLICKED -> 60L
-                        AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> 100L
-                        else -> 140L
-                    },
-                )
-                evaluateCurrentWindow()
+                while (isActive && evaluationRequested) {
+                    evaluationRequested = false
+                    delay(evaluationDelayMillis(latestEvaluationEventType))
+                    runCatching { evaluateCurrentWindow() }
+                        .onFailure { error ->
+                            logDebug(
+                                screen = InstagramScreen.OTHER,
+                                message = "Evaluation failed: ${error.javaClass.simpleName}",
+                            )
+                        }
+                }
             }
+    }
+
+    private fun evaluationDelayMillis(eventType: Int): Long =
+        when (eventType) {
+            AccessibilityEvent.TYPE_VIEW_CLICKED -> 60L
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> 100L
+            else -> 140L
+        }
+
+    private fun startKeepAlivePulse() {
+        if (keepAliveJob?.isActive == true) {
+            return
+        }
+
+        keepAliveJob =
+            serviceScope.launch {
+                while (isActive) {
+                    delay(KEEP_ALIVE_PULSE_MILLIS)
+                    if (isInstagramWindowActive()) {
+                        scheduleEvaluation(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
+                    }
+                }
+            }
+    }
+
+    private fun isInstagramWindowActive(): Boolean {
+        val root = rootInActiveWindow ?: return false
+
+        return try {
+            root.packageName?.toString() == InstagramConstants.PACKAGE_NAME
+        } finally {
+            root.recycleSafely()
+        }
     }
 
     private fun evaluateCurrentWindow() {
@@ -556,6 +604,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
     }
 
     private companion object {
+        const val KEEP_ALIVE_PULSE_MILLIS = 1_000L
         const val HOME_NAVIGATION_SETTLE_MILLIS = 1_500L
 
         val HOME_TAB_VIEW_IDS =
