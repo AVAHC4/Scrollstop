@@ -10,6 +10,7 @@ import com.example.instadmguard.data.SettingsRepository
 import com.example.instadmguard.detector.AccessibilityNodeSnapshotBuilder
 import com.example.instadmguard.detector.DetectionHeuristics
 import com.example.instadmguard.detector.InstagramScreenDetector
+import com.example.instadmguard.detector.ReelViewerSignature
 import com.example.instadmguard.model.BlockMode
 import com.example.instadmguard.model.InstagramScreen
 import com.example.instadmguard.util.InstagramConstants
@@ -103,13 +104,13 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
             }
 
             if (
-                sessionStateManager.hasActiveDmReelAllowance(nowMillis) &&
                 DetectionHeuristics.isExplicitReelsEntryClick(lastEventSummary)
             ) {
+                sessionStateManager.noteExplicitReelsEntryClick(nowMillis)
                 sessionStateManager.clearDmReelAllowance()
                 logDebug(
                     screen = lastDetectedScreen,
-                    message = "Cleared DM reel allowance from explicit reels entry click: $lastEventSummary",
+                    message = "Armed strict reels button block from click: $lastEventSummary",
                 )
             }
             return
@@ -162,6 +163,13 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         val settings = settingsRepository.settings.value
         val nowMillis = System.currentTimeMillis()
         val detection = detector.detect(snapshot)
+        val previousDetectedScreen = serviceStateStore.status.value.lastDetectedScreen
+        val viewerSignature =
+            if (detection.screen == InstagramScreen.REEL_VIEWER) {
+                ReelViewerSignature.fromSnapshot(snapshot)
+            } else {
+                emptySet()
+            }
 
         if (!detection.screen.isBlockTarget || nowMillis - lastHomeNavigationAtMillis >= HOME_NAVIGATION_SETTLE_MILLIS) {
             homeNavigationPending = false
@@ -170,6 +178,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         val sessionSnapshot =
             sessionStateManager.onScreenDetected(
                 screen = detection.screen,
+                viewerSignature = viewerSignature,
                 nowMillis = nowMillis,
                 settings = settings,
             )
@@ -189,6 +198,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
             decision = decision,
             settings = settings,
             screen = detection.screen,
+            previousScreen = previousDetectedScreen,
             nowMillis = nowMillis,
         )
 
@@ -255,6 +265,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                             decision = liveDecision,
                             settings = liveSettings,
                             screen = currentScreen,
+                            previousScreen = currentScreen,
                             nowMillis = nowMillis,
                         )
                     }
@@ -271,6 +282,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         decision: GuardDecision,
         settings: AppSettings,
         screen: InstagramScreen,
+        previousScreen: InstagramScreen,
         nowMillis: Long,
     ) {
         if (!decision.shouldBlock) {
@@ -302,13 +314,19 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 if (shouldSuppressRepeatedHomeNavigation(nowMillis)) {
                     return
                 }
-                val navigatedHome = navigateToInstagramHome()
-                if (navigatedHome) {
+                val returnedToSafeSurface =
+                    if (shouldUseBackToReturnToFeed(screen, previousScreen, nowMillis)) {
+                        navigateBackInsideInstagram()
+                    } else {
+                        navigateToInstagramHome()
+                    }
+                if (returnedToSafeSurface) {
                     recordHomeNavigation(nowMillis)
                     sessionStateManager.markBlocked(nowMillis)
-                    logDebug(screen, "Navigated to Instagram home for $screen")
+                    sessionStateManager.clearExplicitReelsEntry()
+                    logDebug(screen, "Returned to safe Instagram surface for $screen")
                 } else {
-                    logDebug(screen, "Could not find Instagram home tab for $screen")
+                    logDebug(screen, "Could not return to a safe Instagram surface for $screen")
                 }
             }
 
@@ -323,13 +341,19 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                     message = "Reels blocked",
                     dismissible = false,
                 )
-                val navigatedHome = navigateToInstagramHome()
-                if (navigatedHome) {
+                val returnedToSafeSurface =
+                    if (shouldUseBackToReturnToFeed(screen, previousScreen, nowMillis)) {
+                        navigateBackInsideInstagram()
+                    } else {
+                        navigateToInstagramHome()
+                    }
+                if (returnedToSafeSurface) {
                     recordHomeNavigation(nowMillis)
                     sessionStateManager.markBlocked(nowMillis)
-                    logDebug(screen, "Displayed overlay and navigated to Instagram home for $screen")
+                    sessionStateManager.clearExplicitReelsEntry()
+                    logDebug(screen, "Displayed overlay and returned to safe Instagram surface for $screen")
                 } else {
-                    logDebug(screen, "Displayed overlay but could not find Instagram home tab for $screen")
+                    logDebug(screen, "Displayed overlay but could not return to a safe Instagram surface for $screen")
                 }
                 serviceScope.launch {
                     delay(700L)
@@ -395,6 +419,16 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         homeNavigationPending = true
         lastHomeNavigationAtMillis = nowMillis
     }
+
+    private fun shouldUseBackToReturnToFeed(
+        screen: InstagramScreen,
+        previousScreen: InstagramScreen,
+        nowMillis: Long,
+    ): Boolean =
+        sessionStateManager.hasPendingExplicitReelsEntry(nowMillis) ||
+            (screen == InstagramScreen.REEL_VIEWER && previousScreen == InstagramScreen.HOME_REEL)
+
+    private fun navigateBackInsideInstagram(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
 
     private fun navigateToInstagramHome(): Boolean {
         val root = rootInActiveWindow ?: return false

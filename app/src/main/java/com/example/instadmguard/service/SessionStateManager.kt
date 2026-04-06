@@ -2,6 +2,7 @@ package com.example.instadmguard.service
 
 import com.example.instadmguard.data.AppSettings
 import com.example.instadmguard.model.InstagramScreen
+import com.example.instadmguard.detector.ReelViewerSignature
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -12,6 +13,8 @@ class SessionStateManager {
     private var pendingDmClickUntilMillis: Long = 0L
     private var dmGraceUntilMillis: Long = 0L
     private var dmAllowanceGrantedAtMillis: Long = 0L
+    private var dmAllowedViewerSignature: Set<String> = emptySet()
+    private var explicitReelsEntryUntilMillis: Long = 0L
     private var lastBlockedAtMillis: Long = 0L
     private var lastNonReelDetectedAtMillis: Long = 0L
     private var lastDmClickSummary: String = ""
@@ -32,6 +35,7 @@ class SessionStateManager {
         pendingDmClickUntilMillis = 0L
         dmGraceUntilMillis = 0L
         dmAllowanceGrantedAtMillis = 0L
+        dmAllowedViewerSignature = emptySet()
     }
 
     fun hasActiveDmReelAllowance(nowMillis: Long): Boolean =
@@ -49,8 +53,20 @@ class SessionStateManager {
         return true
     }
 
+    fun noteExplicitReelsEntryClick(nowMillis: Long) {
+        explicitReelsEntryUntilMillis = nowMillis + EXPLICIT_REELS_ENTRY_WINDOW_MILLIS
+    }
+
+    fun hasPendingExplicitReelsEntry(nowMillis: Long): Boolean =
+        explicitReelsEntryUntilMillis > nowMillis
+
+    fun clearExplicitReelsEntry() {
+        explicitReelsEntryUntilMillis = 0L
+    }
+
     fun onScreenDetected(
         screen: InstagramScreen,
+        viewerSignature: Set<String>,
         nowMillis: Long,
         settings: AppSettings,
     ): SessionSnapshot {
@@ -68,7 +84,19 @@ class SessionStateManager {
         ) {
             dmGraceUntilMillis = nowMillis + (settings.graceDurationSeconds * 1_000L)
             dmAllowanceGrantedAtMillis = nowMillis
+            dmAllowedViewerSignature = viewerSignature
             pendingDmClickUntilMillis = 0L
+        }
+
+        if (
+            settings.allowDmOpenedReelsOnly &&
+            screen == InstagramScreen.REEL_VIEWER &&
+            dmGraceUntilMillis > nowMillis &&
+            dmAllowedViewerSignature.isNotEmpty() &&
+            viewerSignature.isNotEmpty() &&
+            !ReelViewerSignature.matches(dmAllowedViewerSignature, viewerSignature)
+        ) {
+            clearDmReelAllowance()
         }
 
         if (!inDmContext && screen != InstagramScreen.REEL_VIEWER) {
@@ -128,6 +156,13 @@ class SessionStateManager {
             return GuardDecision(
                 shouldBlock = false,
                 reason = "Safe surface",
+            )
+        }
+
+        if (hasPendingExplicitReelsEntry(nowMillis)) {
+            return GuardDecision(
+                shouldBlock = true,
+                reason = "Explicit reels button blocked",
             )
         }
 
@@ -216,6 +251,7 @@ class SessionStateManager {
     private companion object {
         const val PENDING_DM_CLICK_WINDOW_MILLIS = 2_500L
         const val DM_VIEWER_SCROLL_CLEAR_DELAY_MILLIS = 750L
+        const val EXPLICIT_REELS_ENTRY_WINDOW_MILLIS = 2_000L
         const val SAME_SURFACE_BLOCK_COOLDOWN_MILLIS = 350L
     }
 }
