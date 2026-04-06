@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">InstaDMGuard</string>
+    <string name="accessibility_service_label">InstaDMGuard Protection</string>
+    <string name="accessibility_service_description">Blocks Instagram reels by default and only grants short-lived access to reels opened directly from DMs.</string>
+</resources>
