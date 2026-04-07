@@ -166,7 +166,7 @@ class SessionStateManagerTest {
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
         manager.noteDmClick(nowMillis + 50L, "shared reel")
         manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
-        manager.noteExplicitReelsEntryClick(nowMillis + 200L)
+        manager.noteExplicitReelsEntryClick()
 
         val decision =
             manager.buildDecision(
@@ -187,7 +187,7 @@ class SessionStateManagerTest {
         manager.noteDmClick(nowMillis + 50L, "shared reel")
         manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis + 1_000L, settings)
-        manager.noteExplicitReelsEntryClick(nowMillis + 1_500L)
+        manager.noteExplicitReelsEntryClick()
 
         val decision =
             manager.buildDecision(
@@ -197,5 +197,33 @@ class SessionStateManagerTest {
             )
 
         assertTrue(decision.shouldBlock)
+    }
+
+    @Test
+    fun `explicit reels button click stays armed until home return succeeds`() {
+        val manager = SessionStateManager()
+        val nowMillis = 90_000L
+
+        manager.noteExplicitReelsEntryClick()
+
+        val delayedDecision =
+            manager.buildDecision(
+                screen = InstagramScreen.REELS_TAB,
+                settings = settings,
+                nowMillis = nowMillis + 60_000L,
+            )
+
+        assertTrue(delayedDecision.shouldBlock)
+
+        manager.clearExplicitReelsEntry()
+
+        val clearedDecision =
+            manager.buildDecision(
+                screen = InstagramScreen.REELS_TAB,
+                settings = settings,
+                nowMillis = nowMillis + 60_100L,
+            )
+
+        assertFalse(clearedDecision.shouldBlock)
     }
 }
