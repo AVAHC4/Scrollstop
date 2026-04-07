@@ -166,38 +166,9 @@ class SessionStateManager {
             )
         }
 
-        if (settings.allowDmOpenedReelsOnly) {
-            return if (screen == InstagramScreen.REEL_VIEWER && dmGraceUntilMillis > nowMillis) {
-                GuardDecision(
-                    shouldBlock = false,
-                    reason = "DM reel session active",
-                )
-            } else {
-                GuardDecision(
-                    shouldBlock = true,
-                    reason = "General reels blocked",
-                )
-            }
-        }
-
-        if (settings.dailyLimitEnabled) {
-            val remaining = dailyLimitRemainingSeconds(settings, nowMillis) ?: 0
-            return if (remaining > 0) {
-                GuardDecision(
-                    shouldBlock = false,
-                    reason = "Within daily limit (${remaining}s left)",
-                )
-            } else {
-                GuardDecision(
-                    shouldBlock = true,
-                    reason = "Daily limit reached",
-                )
-            }
-        }
-
         return GuardDecision(
-            shouldBlock = true,
-            reason = "Reel surface blocked",
+            shouldBlock = false,
+            reason = "Allowed because Reels button was not clicked",
         )
     }
 

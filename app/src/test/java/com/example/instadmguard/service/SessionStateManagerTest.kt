@@ -41,6 +41,32 @@ class SessionStateManagerTest {
     }
 
     @Test
+    fun `reel viewer does not block without an explicit reels button click`() {
+        val manager = SessionStateManager()
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REEL_VIEWER,
+                settings = settings,
+                nowMillis = 16_000L,
+            )
+
+        assertFalse(decision.shouldBlock)
+    }
+
+    @Test
+    fun `reels tab does not block without an explicit reels button click`() {
+        val manager = SessionStateManager()
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REELS_TAB,
+                settings = settings,
+                nowMillis = 17_000L,
+            )
+
+        assertFalse(decision.shouldBlock)
+    }
+
+    @Test
     fun `same reel surface still has a short debounce after a block`() {
         val manager = SessionStateManager()
         val blockedAt = 20_000L
@@ -72,7 +98,7 @@ class SessionStateManagerTest {
     }
 
     @Test
-    fun `dm reel allowance clears after leaving the viewer`() {
+    fun `dm reel remains allowed after leaving the viewer unless reels button is clicked`() {
         val manager = SessionStateManager()
         val nowMillis = 40_000L
 
@@ -88,11 +114,11 @@ class SessionStateManagerTest {
                 nowMillis = nowMillis + 700L,
             )
 
-        assertTrue(decision.shouldBlock)
+        assertFalse(decision.shouldBlock)
     }
 
     @Test
-    fun `dm reel allowance clears after scrolling inside the reel viewer`() {
+    fun `scrolling inside the reel viewer does not block unless reels button is clicked`() {
         val manager = SessionStateManager()
         val nowMillis = 50_000L
 
@@ -109,11 +135,11 @@ class SessionStateManagerTest {
                 nowMillis = nowMillis + 1_100L,
             )
 
-        assertTrue(decision.shouldBlock)
+        assertFalse(decision.shouldBlock)
     }
 
     @Test
-    fun `dm reel allowance clears when a different reel viewer appears`() {
+    fun `different reel viewer does not block unless reels button is clicked`() {
         val manager = SessionStateManager()
         val nowMillis = 60_000L
 
@@ -129,7 +155,7 @@ class SessionStateManagerTest {
                 nowMillis = nowMillis + 1_100L,
             )
 
-        assertTrue(decision.shouldBlock)
+        assertFalse(decision.shouldBlock)
     }
 
     @Test

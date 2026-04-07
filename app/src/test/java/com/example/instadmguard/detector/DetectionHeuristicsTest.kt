@@ -23,4 +23,13 @@ class DetectionHeuristicsTest {
             ),
         )
     }
+
+    @Test
+    fun `does not treat dm shared reel content as a reels tab click`() {
+        assertFalse(
+            DetectionHeuristics.isExplicitReelsEntryClick(
+                "Shared a reel | Tap to watch | Reel",
+            ),
+        )
+    }
 }

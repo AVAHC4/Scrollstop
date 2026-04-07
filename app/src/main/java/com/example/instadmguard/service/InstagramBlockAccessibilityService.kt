@@ -96,6 +96,16 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         val lastDetectedScreen = serviceStateStore.status.value.lastDetectedScreen
 
         if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            if (DetectionHeuristics.isExplicitReelsEntryClick(lastEventSummary)) {
+                sessionStateManager.noteExplicitReelsEntryClick(nowMillis)
+                sessionStateManager.clearDmReelAllowance()
+                logDebug(
+                    screen = lastDetectedScreen,
+                    message = "Armed strict reels button block from click: $lastEventSummary",
+                )
+                return
+            }
+
             if (sessionStateManager.isInDmContext()) {
                 sessionStateManager.noteDmClick(
                     nowMillis = nowMillis,
@@ -107,17 +117,6 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                     message = "Armed DM click window from click: $lastEventSummary",
                 )
                 return
-            }
-
-            if (
-                DetectionHeuristics.isExplicitReelsEntryClick(lastEventSummary)
-            ) {
-                sessionStateManager.noteExplicitReelsEntryClick(nowMillis)
-                sessionStateManager.clearDmReelAllowance()
-                logDebug(
-                    screen = lastDetectedScreen,
-                    message = "Armed strict reels button block from click: $lastEventSummary",
-                )
             }
             return
         }
@@ -363,7 +362,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                     return
                 }
                 val returnedToSafeSurface =
-                    if (shouldUseBackToReturnToFeed(screen, previousScreen, nowMillis)) {
+                    if (shouldUseBackToReturnToFeed(screen, previousScreen)) {
                         navigateBackInsideInstagram()
                     } else {
                         navigateToInstagramHome()
@@ -390,7 +389,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                     dismissible = false,
                 )
                 val returnedToSafeSurface =
-                    if (shouldUseBackToReturnToFeed(screen, previousScreen, nowMillis)) {
+                    if (shouldUseBackToReturnToFeed(screen, previousScreen)) {
                         navigateBackInsideInstagram()
                     } else {
                         navigateToInstagramHome()
@@ -471,10 +470,8 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
     private fun shouldUseBackToReturnToFeed(
         screen: InstagramScreen,
         previousScreen: InstagramScreen,
-        nowMillis: Long,
     ): Boolean =
-        sessionStateManager.hasPendingExplicitReelsEntry(nowMillis) ||
-            (screen == InstagramScreen.REEL_VIEWER && previousScreen == InstagramScreen.HOME_REEL)
+        screen == InstagramScreen.REEL_VIEWER && previousScreen == InstagramScreen.HOME_REEL
 
     private fun navigateBackInsideInstagram(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
 
