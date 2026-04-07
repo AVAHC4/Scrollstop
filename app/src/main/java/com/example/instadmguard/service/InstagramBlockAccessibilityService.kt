@@ -97,7 +97,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
 
         if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             if (DetectionHeuristics.isExplicitReelsEntryClick(lastEventSummary)) {
-                sessionStateManager.noteExplicitReelsEntryClick(nowMillis)
+                sessionStateManager.noteExplicitReelsEntryClick()
                 sessionStateManager.clearDmReelAllowance()
                 logDebug(
                     screen = lastDetectedScreen,
