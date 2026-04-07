@@ -177,4 +177,25 @@ class SessionStateManagerTest {
 
         assertTrue(decision.shouldBlock)
     }
+
+    @Test
+    fun `explicit reels button click remains armed through delayed transition after dm reel`() {
+        val manager = SessionStateManager()
+        val nowMillis = 80_000L
+
+        manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
+        manager.noteDmClick(nowMillis + 50L, "shared reel")
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
+        manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis + 1_000L, settings)
+        manager.noteExplicitReelsEntryClick(nowMillis + 1_500L)
+
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REELS_TAB,
+                settings = settings,
+                nowMillis = nowMillis + 6_000L,
+            )
+
+        assertTrue(decision.shouldBlock)
+    }
 }

@@ -14,7 +14,7 @@ class SessionStateManager {
     private var dmGraceUntilMillis: Long = 0L
     private var dmAllowanceGrantedAtMillis: Long = 0L
     private var dmAllowedViewerSignature: Set<String> = emptySet()
-    private var explicitReelsEntryUntilMillis: Long = 0L
+    private var explicitReelsEntryArmed: Boolean = false
     private var lastBlockedAtMillis: Long = 0L
     private var lastNonReelDetectedAtMillis: Long = 0L
     private var lastDmClickSummary: String = ""
@@ -53,15 +53,14 @@ class SessionStateManager {
         return true
     }
 
-    fun noteExplicitReelsEntryClick(nowMillis: Long) {
-        explicitReelsEntryUntilMillis = nowMillis + EXPLICIT_REELS_ENTRY_WINDOW_MILLIS
+    fun noteExplicitReelsEntryClick() {
+        explicitReelsEntryArmed = true
     }
 
-    fun hasPendingExplicitReelsEntry(nowMillis: Long): Boolean =
-        explicitReelsEntryUntilMillis > nowMillis
+    fun hasPendingExplicitReelsEntry(): Boolean = explicitReelsEntryArmed
 
     fun clearExplicitReelsEntry() {
-        explicitReelsEntryUntilMillis = 0L
+        explicitReelsEntryArmed = false
     }
 
     fun onScreenDetected(
@@ -159,7 +158,7 @@ class SessionStateManager {
             )
         }
 
-        if (hasPendingExplicitReelsEntry(nowMillis)) {
+        if (hasPendingExplicitReelsEntry()) {
             return GuardDecision(
                 shouldBlock = true,
                 reason = "Explicit reels button blocked",
@@ -222,7 +221,6 @@ class SessionStateManager {
     private companion object {
         const val PENDING_DM_CLICK_WINDOW_MILLIS = 2_500L
         const val DM_VIEWER_SCROLL_CLEAR_DELAY_MILLIS = 750L
-        const val EXPLICIT_REELS_ENTRY_WINDOW_MILLIS = 2_000L
         const val SAME_SURFACE_BLOCK_COOLDOWN_MILLIS = 350L
     }
 }

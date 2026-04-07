@@ -88,6 +88,20 @@ object DetectionHeuristics {
         "tab_bar_button_reels",
     )
 
+    val dmSharedReelClickClues = listOf(
+        "shared a reel",
+        "sent a reel",
+        "replied to a reel",
+        "tap to watch",
+    )
+
+    val reelViewerClickClues = listOf(
+        "clips_viewer",
+        "reel_viewer",
+        "media_viewer",
+        "watch more reels",
+    )
+
     val exploreClues = listOf(
         "explore",
         "discover",
@@ -115,6 +129,19 @@ object DetectionHeuristics {
 
     fun isExplicitReelsEntryClick(summary: String): Boolean {
         val corpus = normalize(summary.split('|'))
-        return matchedClues(corpus, explicitReelsEntryClickClues).isNotEmpty()
+
+        if (matchedClues(corpus, dmSharedReelClickClues).isNotEmpty()) {
+            return false
+        }
+
+        if (matchedClues(corpus, reelViewerClickClues).isNotEmpty()) {
+            return false
+        }
+
+        if (matchedClues(corpus, explicitReelsEntryClickClues).isNotEmpty()) {
+            return true
+        }
+
+        return corpus.any { it == "reels" || it == "clips" }
     }
 }
