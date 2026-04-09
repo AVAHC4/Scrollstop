@@ -218,7 +218,7 @@ class SessionStateManagerTest {
     }
 
     @Test
-    fun `explicit reels button click stays armed until home return succeeds`() {
+    fun `clearing explicit reels entry falls back to dm-only blocking`() {
         val manager = SessionStateManager()
         val nowMillis = 90_000L
 
@@ -242,7 +242,7 @@ class SessionStateManagerTest {
                 nowMillis = nowMillis + 60_100L,
             )
 
-        assertFalse(clearedDecision.shouldBlock)
+        assertTrue(clearedDecision.shouldBlock)
     }
 
     @Test
@@ -255,6 +255,23 @@ class SessionStateManagerTest {
                 screen = InstagramScreen.REEL_VIEWER,
                 settings = relaxedSettings,
                 nowMillis = 95_000L,
+            )
+
+        assertFalse(decision.shouldBlock)
+    }
+
+    @Test
+    fun `explicit reels entry does not override relaxed mode`() {
+        val manager = SessionStateManager()
+        val relaxedSettings = settings.copy(allowDmOpenedReelsOnly = false)
+
+        manager.noteExplicitReelsEntryClick()
+
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REEL_VIEWER,
+                settings = relaxedSettings,
+                nowMillis = 96_000L,
             )
 
         assertFalse(decision.shouldBlock)

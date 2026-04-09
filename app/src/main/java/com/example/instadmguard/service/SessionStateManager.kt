@@ -160,15 +160,13 @@ class SessionStateManager {
             )
         }
 
-        if (hasPendingExplicitReelsEntry()) {
-            return GuardDecision(
-                shouldBlock = true,
-                reason = "Explicit reels button blocked",
-            )
-        }
-
         if (settings.allowDmOpenedReelsOnly) {
-            return if (hasGrantedDmReelAllowance(nowMillis)) {
+            return if (hasPendingExplicitReelsEntry()) {
+                GuardDecision(
+                    shouldBlock = true,
+                    reason = "Explicit reels button blocked",
+                )
+            } else if (hasGrantedDmReelAllowance(nowMillis)) {
                 GuardDecision(
                     shouldBlock = false,
                     reason = "Allowed DM-opened reel within grace window",
