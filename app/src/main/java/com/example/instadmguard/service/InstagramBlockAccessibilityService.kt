@@ -218,7 +218,10 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 emptySet()
             }
 
-        if (!detection.screen.isBlockTarget || nowMillis - lastHomeNavigationAtMillis >= HOME_NAVIGATION_SETTLE_MILLIS) {
+        if (homeNavigationPending && !detection.screen.isBlockTarget) {
+            homeNavigationPending = false
+            sessionStateManager.clearExplicitReelsEntry()
+        } else if (homeNavigationPending && nowMillis - lastHomeNavigationAtMillis >= HOME_NAVIGATION_SETTLE_MILLIS) {
             homeNavigationPending = false
         }
 
@@ -370,7 +373,6 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 if (returnedToSafeSurface) {
                     recordHomeNavigation(nowMillis)
                     sessionStateManager.markBlocked(nowMillis)
-                    sessionStateManager.clearExplicitReelsEntry()
                     logDebug(screen, "Returned to safe Instagram surface for $screen")
                 } else {
                     logDebug(screen, "Could not return to a safe Instagram surface for $screen")
@@ -397,7 +399,6 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 if (returnedToSafeSurface) {
                     recordHomeNavigation(nowMillis)
                     sessionStateManager.markBlocked(nowMillis)
-                    sessionStateManager.clearExplicitReelsEntry()
                     logDebug(screen, "Displayed overlay and returned to safe Instagram surface for $screen")
                 } else {
                     logDebug(screen, "Displayed overlay but could not return to a safe Instagram surface for $screen")

@@ -78,7 +78,27 @@ app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-4. If prompted on-device, allow installs from your chosen source.
+4. The debug build now installs as `com.example.instadmguard.debug`, so it can coexist with the release build on the same phone.
+5. If prompted on-device, allow installs from your chosen source.
+
+## Installable release APK
+
+If you want an APK that updates the already-installed release app on your phone, build the release variant instead of `app-debug.apk`:
+
+```bash
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export ANDROID_SDK_ROOT=$ANDROID_HOME
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+./gradlew assembleRelease
+```
+
+The release APK is created at:
+
+```text
+app/build/outputs/apk/release/app-release.apk
+```
+
+Use the release APK for manual sideload on-device when you want to replace the existing release install. Use the debug APK when you want a separate test build.
 
 ## Enable the accessibility service
 

@@ -41,7 +41,7 @@ class SessionStateManagerTest {
     }
 
     @Test
-    fun `reel viewer does not block without an explicit reels button click`() {
+    fun `reel viewer blocks by default outside the dm allowance`() {
         val manager = SessionStateManager()
         val decision =
             manager.buildDecision(
@@ -50,11 +50,11 @@ class SessionStateManagerTest {
                 nowMillis = 16_000L,
             )
 
-        assertFalse(decision.shouldBlock)
+        assertTrue(decision.shouldBlock)
     }
 
     @Test
-    fun `reels tab does not block without an explicit reels button click`() {
+    fun `reels tab blocks by default outside the dm allowance`() {
         val manager = SessionStateManager()
         val decision =
             manager.buildDecision(
@@ -63,7 +63,7 @@ class SessionStateManagerTest {
                 nowMillis = 17_000L,
             )
 
-        assertFalse(decision.shouldBlock)
+        assertTrue(decision.shouldBlock)
     }
 
     @Test
@@ -98,7 +98,7 @@ class SessionStateManagerTest {
     }
 
     @Test
-    fun `dm reel remains allowed after leaving the viewer unless reels button is clicked`() {
+    fun `dm reel blocks again after leaving the viewer`() {
         val manager = SessionStateManager()
         val nowMillis = 40_000L
 
@@ -114,11 +114,11 @@ class SessionStateManagerTest {
                 nowMillis = nowMillis + 700L,
             )
 
-        assertFalse(decision.shouldBlock)
+        assertTrue(decision.shouldBlock)
     }
 
     @Test
-    fun `scrolling inside the reel viewer does not block unless reels button is clicked`() {
+    fun `scrolling away from the dm-opened reel allowance re-blocks the viewer`() {
         val manager = SessionStateManager()
         val nowMillis = 50_000L
 
@@ -135,11 +135,11 @@ class SessionStateManagerTest {
                 nowMillis = nowMillis + 1_100L,
             )
 
-        assertFalse(decision.shouldBlock)
+        assertTrue(decision.shouldBlock)
     }
 
     @Test
-    fun `different reel viewer does not block unless reels button is clicked`() {
+    fun `different reel viewer blocks after the dm-opened signature changes`() {
         val manager = SessionStateManager()
         val nowMillis = 60_000L
 
@@ -155,7 +155,25 @@ class SessionStateManagerTest {
                 nowMillis = nowMillis + 1_100L,
             )
 
-        assertFalse(decision.shouldBlock)
+        assertTrue(decision.shouldBlock)
+    }
+
+    @Test
+    fun `pending dm click alone does not allow the reels tab`() {
+        val manager = SessionStateManager()
+        val nowMillis = 65_000L
+
+        manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
+        manager.noteDmClick(nowMillis + 50L, "shared reel")
+
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REELS_TAB,
+                settings = settings,
+                nowMillis = nowMillis + 100L,
+            )
+
+        assertTrue(decision.shouldBlock)
     }
 
     @Test
@@ -225,5 +243,43 @@ class SessionStateManagerTest {
             )
 
         assertFalse(clearedDecision.shouldBlock)
+    }
+
+    @Test
+    fun `general reels are allowed when dm-only mode is off and no daily limit is active`() {
+        val manager = SessionStateManager()
+        val relaxedSettings = settings.copy(allowDmOpenedReelsOnly = false)
+
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REEL_VIEWER,
+                settings = relaxedSettings,
+                nowMillis = 95_000L,
+            )
+
+        assertFalse(decision.shouldBlock)
+    }
+
+    @Test
+    fun `general reels block when the daily limit is exhausted`() {
+        val manager = SessionStateManager()
+        val limitedSettings =
+            settings.copy(
+                allowDmOpenedReelsOnly = false,
+                dailyLimitEnabled = true,
+                dailyLimitMinutes = 1,
+            )
+        val nowMillis = 100_000L
+
+        manager.addDailyUsageSeconds(nowMillis, 60)
+
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REEL_VIEWER,
+                settings = limitedSettings,
+                nowMillis = nowMillis + 1_000L,
+            )
+
+        assertTrue(decision.shouldBlock)
     }
 }

@@ -54,6 +54,14 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            resValue("string", "app_name", "InstaDMGuard Debug")
+            resValue(
+                "string",
+                "accessibility_service_label",
+                "InstaDMGuard Debug Protection",
+            )
         }
 
         release {

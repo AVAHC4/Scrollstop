@@ -41,6 +41,8 @@ class SessionStateManager {
     fun hasActiveDmReelAllowance(nowMillis: Long): Boolean =
         pendingDmClickUntilMillis > nowMillis || dmGraceUntilMillis > nowMillis
 
+    fun hasGrantedDmReelAllowance(nowMillis: Long): Boolean = dmGraceUntilMillis > nowMillis
+
     fun clearDmReelAllowanceForViewerScroll(nowMillis: Long): Boolean {
         if (
             dmGraceUntilMillis <= nowMillis ||
@@ -165,10 +167,39 @@ class SessionStateManager {
             )
         }
 
-        return GuardDecision(
-            shouldBlock = false,
-            reason = "Allowed because Reels button was not clicked",
-        )
+        if (settings.allowDmOpenedReelsOnly) {
+            return if (hasGrantedDmReelAllowance(nowMillis)) {
+                GuardDecision(
+                    shouldBlock = false,
+                    reason = "Allowed DM-opened reel within grace window",
+                )
+            } else {
+                GuardDecision(
+                    shouldBlock = true,
+                    reason = "Only DM-opened reels are allowed",
+                )
+            }
+        }
+
+        val remainingDailyLimit = dailyLimitRemainingSeconds(settings, nowMillis)
+        if (remainingDailyLimit != null && remainingDailyLimit <= 0) {
+            return GuardDecision(
+                shouldBlock = true,
+                reason = "Daily reels limit reached",
+            )
+        }
+
+        return if (remainingDailyLimit != null) {
+            GuardDecision(
+                shouldBlock = false,
+                reason = "General reels allowed within daily limit",
+            )
+        } else {
+            GuardDecision(
+                shouldBlock = false,
+                reason = "General reels allowed",
+            )
+        }
     }
 
     fun canBlockNow(
