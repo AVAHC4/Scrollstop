@@ -44,10 +44,7 @@ class SessionStateManager {
     fun hasGrantedDmReelAllowance(nowMillis: Long): Boolean = dmGraceUntilMillis > nowMillis
 
     fun clearDmReelAllowanceForViewerScroll(nowMillis: Long): Boolean {
-        if (
-            dmGraceUntilMillis <= nowMillis ||
-            nowMillis - dmAllowanceGrantedAtMillis < DM_VIEWER_SCROLL_CLEAR_DELAY_MILLIS
-        ) {
+        if (dmGraceUntilMillis <= nowMillis) {
             return false
         }
 
@@ -248,9 +245,8 @@ class SessionStateManager {
     }
 
     private companion object {
-        const val PENDING_DM_CLICK_WINDOW_MILLIS = 2_500L
-        const val DM_VIEWER_SCROLL_CLEAR_DELAY_MILLIS = 750L
-        const val SAME_SURFACE_BLOCK_COOLDOWN_MILLIS = 350L
+        const val PENDING_DM_CLICK_WINDOW_MILLIS = 1_200L
+        const val SAME_SURFACE_BLOCK_COOLDOWN_MILLIS = 150L
     }
 }
 

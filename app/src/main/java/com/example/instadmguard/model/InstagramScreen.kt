@@ -11,5 +11,5 @@ enum class InstagramScreen(
     REEL_VIEWER("Reel viewer", true),
     REELS_TAB("Reels tab", true),
     EXPLORE_REELS("Explore reels", true),
-    HOME_REEL("Home reel", true, false),
+    HOME_REEL("Home reel", true),
 }

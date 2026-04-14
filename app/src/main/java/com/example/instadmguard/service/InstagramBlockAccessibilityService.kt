@@ -364,12 +364,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 if (shouldSuppressRepeatedHomeNavigation(nowMillis)) {
                     return
                 }
-                val returnedToSafeSurface =
-                    if (shouldUseBackToReturnToFeed(screen, previousScreen)) {
-                        navigateBackInsideInstagram()
-                    } else {
-                        navigateToInstagramHome()
-                    }
+                val returnedToSafeSurface = returnToSafeSurface(screen, previousScreen)
                 if (returnedToSafeSurface) {
                     recordHomeNavigation(nowMillis)
                     sessionStateManager.markBlocked(nowMillis)
@@ -390,12 +385,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                     message = "Reels blocked",
                     dismissible = false,
                 )
-                val returnedToSafeSurface =
-                    if (shouldUseBackToReturnToFeed(screen, previousScreen)) {
-                        navigateBackInsideInstagram()
-                    } else {
-                        navigateToInstagramHome()
-                    }
+                val returnedToSafeSurface = returnToSafeSurface(screen, previousScreen)
                 if (returnedToSafeSurface) {
                     recordHomeNavigation(nowMillis)
                     sessionStateManager.markBlocked(nowMillis)
@@ -472,7 +462,29 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         screen: InstagramScreen,
         previousScreen: InstagramScreen,
     ): Boolean =
-        screen == InstagramScreen.REEL_VIEWER && previousScreen == InstagramScreen.HOME_REEL
+        screen == InstagramScreen.HOME_REEL ||
+            (screen == InstagramScreen.REEL_VIEWER && previousScreen == InstagramScreen.HOME_REEL)
+
+    private fun returnToSafeSurface(
+        screen: InstagramScreen,
+        previousScreen: InstagramScreen,
+    ): Boolean {
+        val preferBack = shouldUseBackToReturnToFeed(screen, previousScreen)
+        val primaryAction: () -> Boolean =
+            if (preferBack) {
+                ::navigateBackInsideInstagram
+            } else {
+                ::navigateToInstagramHome
+            }
+        val fallbackAction: () -> Boolean =
+            if (preferBack) {
+                ::navigateToInstagramHome
+            } else {
+                ::navigateBackInsideInstagram
+            }
+
+        return primaryAction() || fallbackAction()
+    }
 
     private fun navigateBackInsideInstagram(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
 

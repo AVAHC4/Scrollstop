@@ -13,7 +13,7 @@ class SessionStateManagerTest {
     private val otherReelSignature = setOf("other_creator", "different reel caption")
 
     @Test
-    fun `reels blocking re-arms immediately after returning to the home feed`() {
+    fun `reels blocking re-arms immediately after returning to a safe surface`() {
         val manager = SessionStateManager()
         val blockedAt = 10_000L
 
@@ -22,13 +22,13 @@ class SessionStateManagerTest {
 
         assertFalse(manager.canBlockNow(InstagramScreen.REELS_TAB, blockedAt + 100L))
 
-        manager.onScreenDetected(InstagramScreen.HOME_REEL, emptySet(), blockedAt + 120L, settings)
+        manager.onScreenDetected(InstagramScreen.OTHER, emptySet(), blockedAt + 120L, settings)
 
         assertTrue(manager.canBlockNow(InstagramScreen.REELS_TAB, blockedAt + 150L))
     }
 
     @Test
-    fun `home feed reel surface does not trigger a block decision`() {
+    fun `home feed reel surface now triggers a block decision`() {
         val manager = SessionStateManager()
         val decision =
             manager.buildDecision(
@@ -37,7 +37,7 @@ class SessionStateManagerTest {
                 nowMillis = 15_000L,
             )
 
-        assertFalse(decision.shouldBlock)
+        assertTrue(decision.shouldBlock)
     }
 
     @Test
@@ -74,8 +74,8 @@ class SessionStateManagerTest {
         manager.onScreenDetected(InstagramScreen.REELS_TAB, emptySet(), blockedAt, settings)
         manager.markBlocked(blockedAt)
 
-        assertFalse(manager.canBlockNow(InstagramScreen.REELS_TAB, blockedAt + 200L))
-        assertTrue(manager.canBlockNow(InstagramScreen.REELS_TAB, blockedAt + 400L))
+        assertFalse(manager.canBlockNow(InstagramScreen.REELS_TAB, blockedAt + 100L))
+        assertTrue(manager.canBlockNow(InstagramScreen.REELS_TAB, blockedAt + 200L))
     }
 
     @Test
@@ -126,13 +126,32 @@ class SessionStateManagerTest {
         manager.noteDmClick(nowMillis + 50L, "shared reel")
         manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
 
-        assertTrue(manager.clearDmReelAllowanceForViewerScroll(nowMillis + 1_000L))
+        assertTrue(manager.clearDmReelAllowanceForViewerScroll(nowMillis + 150L))
 
         val decision =
             manager.buildDecision(
                 screen = InstagramScreen.REEL_VIEWER,
                 settings = settings,
-                nowMillis = nowMillis + 1_100L,
+                nowMillis = nowMillis + 200L,
+            )
+
+        assertTrue(decision.shouldBlock)
+    }
+
+    @Test
+    fun `dm allowance expires if the viewer opens too long after the dm tap`() {
+        val manager = SessionStateManager()
+        val nowMillis = 55_000L
+
+        manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
+        manager.noteDmClick(nowMillis + 50L, "shared reel")
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 1_400L, settings)
+
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REEL_VIEWER,
+                settings = settings,
+                nowMillis = nowMillis + 1_450L,
             )
 
         assertTrue(decision.shouldBlock)
