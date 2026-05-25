@@ -18,6 +18,7 @@ class SessionStateManager {
     private var lastBlockedAtMillis: Long = 0L
     private var lastNonReelDetectedAtMillis: Long = 0L
     private var lastDmClickSummary: String = ""
+    private var lastNonViewerScreen: InstagramScreen = InstagramScreen.OTHER
     private var usageDay: LocalDate = LocalDate.now()
     private var dailyUsageSeconds: Int = 0
 
@@ -97,8 +98,24 @@ class SessionStateManager {
             clearDmReelAllowance()
         }
 
-        if (!inDmContext && screen != InstagramScreen.REEL_VIEWER) {
-            dmGraceUntilMillis = 0L
+        if (!inDmContext) {
+            if (screen == InstagramScreen.REEL_VIEWER) {
+                // Only preserve DM grace if we came directly from a DM screen.
+                // If we arrived here from any other surface (HOME, OTHER, REELS_TAB, etc.),
+                // this is NOT a DM-opened reel — clear the allowance.
+                val cameFromDm = lastNonViewerScreen == InstagramScreen.DM_LIST ||
+                                 lastNonViewerScreen == InstagramScreen.DM_THREAD
+                if (!cameFromDm) {
+                    clearDmReelAllowance()
+                }
+            } else {
+                // On any non-REEL_VIEWER, non-DM surface: clear grace fully
+                clearDmReelAllowance()
+            }
+        }
+
+        if (screen != InstagramScreen.REEL_VIEWER) {
+            lastNonViewerScreen = screen
         }
 
         if (pendingDmClickUntilMillis < nowMillis) {
