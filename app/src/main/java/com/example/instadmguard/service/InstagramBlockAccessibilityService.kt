@@ -120,7 +120,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 return
             }
 
-            if (sessionStateManager.isRecentlyInDmContext(nowMillis)) {
+            if (sessionStateManager.isInDmContext()) {
                 sessionStateManager.noteDmClick(
                     nowMillis = nowMillis,
                     clickSummary = lastEventSummary,

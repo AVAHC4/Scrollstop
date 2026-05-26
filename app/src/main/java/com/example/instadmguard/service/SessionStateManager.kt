@@ -89,6 +89,14 @@ class SessionStateManager {
             lastNonReelDetectedAtMillis = nowMillis
         }
 
+        // When navigating to an explicit reel surface (REELS_TAB, EXPLORE_REELS,
+        // HOME_REEL), aggressively clear all DM state. This prevents the
+        // DMs → Reels tab flow from keeping a stale DM context alive.
+        if (!inDmContext && screen.isBlockTarget && screen != InstagramScreen.REEL_VIEWER) {
+            recentDmContextUntilMillis = 0L
+            clearDmReelAllowance()
+        }
+
         if (
             settings.allowDmOpenedReelsOnly &&
             screen == InstagramScreen.REEL_VIEWER &&
@@ -106,9 +114,12 @@ class SessionStateManager {
                 // Check both the last non-viewer screen AND whether we were in
                 // DM context within the last few seconds (covers intermediate
                 // OTHER screens during DM→reel transitions).
+                // Allow recentDmContext to cover transient OTHER screens
+                // during DM→reel transitions, but NOT if the last non-viewer
+                // screen was itself a reel surface (REELS_TAB, HOME_REEL, etc.)
                 val cameFromDm = lastNonViewerScreen == InstagramScreen.DM_LIST ||
                                  lastNonViewerScreen == InstagramScreen.DM_THREAD ||
-                                 recentDmContextUntilMillis > nowMillis
+                                 (recentDmContextUntilMillis > nowMillis && !lastNonViewerScreen.isBlockTarget)
                 if (!cameFromDm) {
                     clearDmReelAllowance()
                 }
