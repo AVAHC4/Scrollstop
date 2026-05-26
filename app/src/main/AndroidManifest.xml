@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:installLocation="auto">
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
     <queries>
         <package android:name="com.instagram.android" />
     </queries>

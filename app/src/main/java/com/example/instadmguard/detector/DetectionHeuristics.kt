@@ -93,6 +93,14 @@ object DetectionHeuristics {
         "sent a reel",
         "replied to a reel",
         "tap to watch",
+        "reel by",
+        "watch reel",
+        "play reel",
+        "view reel",
+        "shared a clip",
+        "sent a clip",
+        "clips_viewer",
+        "reel_viewer",
     )
 
     val reelViewerClickClues = listOf(

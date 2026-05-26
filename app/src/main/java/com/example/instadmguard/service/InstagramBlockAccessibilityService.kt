@@ -1,6 +1,11 @@
 package com.example.instadmguard.service
 
 import android.accessibilityservice.AccessibilityService
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.instadmguard.InstaDMGuardApp
@@ -10,7 +15,6 @@ import com.example.instadmguard.data.SettingsRepository
 import com.example.instadmguard.detector.AccessibilityNodeSnapshotBuilder
 import com.example.instadmguard.detector.DetectionHeuristics
 import com.example.instadmguard.detector.InstagramScreenDetector
-import com.example.instadmguard.detector.ReelViewerSignature
 import com.example.instadmguard.model.BlockMode
 import com.example.instadmguard.model.InstagramScreen
 import com.example.instadmguard.util.InstagramConstants
@@ -55,6 +59,8 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         sessionStateManager = appContainer.sessionStateManager
         overlayController = OverlayController(this)
 
+        startForegroundKeepAlive()
+
         serviceStateStore.update { current ->
             current.copy(serviceConnected = true, lastDecision = "Service connected")
         }
@@ -88,6 +94,14 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         overlayController.dispose()
         serviceScope.cancel()
         serviceStateStore.reset()
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+        }
     }
 
     private fun handleEventSignal(event: AccessibilityEvent) {
@@ -106,7 +120,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 return
             }
 
-            if (sessionStateManager.isInDmContext()) {
+            if (sessionStateManager.isRecentlyInDmContext(nowMillis)) {
                 sessionStateManager.noteDmClick(
                     nowMillis = nowMillis,
                     clickSummary = lastEventSummary,
@@ -119,17 +133,6 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 return
             }
             return
-        }
-
-        if (
-            event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED &&
-            lastDetectedScreen == InstagramScreen.REEL_VIEWER &&
-            sessionStateManager.clearDmReelAllowanceForViewerScroll(nowMillis)
-        ) {
-            logDebug(
-                screen = lastDetectedScreen,
-                message = "Cleared DM reel allowance from reel viewer scroll",
-            )
         }
     }
 
@@ -163,6 +166,39 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> 100L
             else -> 140L
         }
+
+    private fun startForegroundKeepAlive() {
+        val channelId = "instadmguard_service"
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "InstaDMGuard Protection",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = "Keeps the reel blocking service active"
+                setShowBadge(false)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, channelId)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+            .setContentTitle("InstaDMGuard active")
+            .setContentText("Reel protection is running")
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setOngoing(true)
+            .build()
+
+        runCatching {
+            startForeground(FOREGROUND_NOTIFICATION_ID, notification)
+        }
+    }
 
     private fun startKeepAlivePulse() {
         if (keepAliveJob?.isActive == true) {
@@ -211,12 +247,6 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         val nowMillis = System.currentTimeMillis()
         val detection = detector.detect(snapshot)
         val previousDetectedScreen = serviceStateStore.status.value.lastDetectedScreen
-        val viewerSignature =
-            if (detection.screen == InstagramScreen.REEL_VIEWER) {
-                ReelViewerSignature.fromSnapshot(snapshot)
-            } else {
-                emptySet()
-            }
 
         if (homeNavigationPending && !detection.screen.isBlockTarget) {
             homeNavigationPending = false
@@ -228,7 +258,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         val sessionSnapshot =
             sessionStateManager.onScreenDetected(
                 screen = detection.screen,
-                viewerSignature = viewerSignature,
+                viewerSignature = emptySet(),
                 nowMillis = nowMillis,
                 settings = settings,
             )
@@ -616,6 +646,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
     private companion object {
         const val KEEP_ALIVE_PULSE_MILLIS = 1_000L
         const val HOME_NAVIGATION_SETTLE_MILLIS = 1_500L
+        const val FOREGROUND_NOTIFICATION_ID = 9001
 
         val HOME_TAB_VIEW_IDS =
             setOf(

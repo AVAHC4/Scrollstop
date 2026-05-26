@@ -9,8 +9,6 @@ import org.junit.Test
 class SessionStateManagerTest {
 
     private val settings = AppSettings()
-    private val sharedReelSignature = setOf("friend_creator", "shared reel caption")
-    private val otherReelSignature = setOf("other_creator", "different reel caption")
 
     @Test
     fun `reels blocking re-arms immediately after returning to a safe surface`() {
@@ -85,7 +83,7 @@ class SessionStateManagerTest {
 
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
         manager.noteDmClick(nowMillis + 50L, "shared reel")
-        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, emptySet(), nowMillis + 100L, settings)
 
         val decision =
             manager.buildDecision(
@@ -104,35 +102,15 @@ class SessionStateManagerTest {
 
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
         manager.noteDmClick(nowMillis + 50L, "shared reel")
-        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
-        manager.onScreenDetected(InstagramScreen.OTHER, emptySet(), nowMillis + 500L, settings)
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, emptySet(), nowMillis + 100L, settings)
+        // Navigate away to a non-DM surface well after the recent-DM context expires (8s)
+        manager.onScreenDetected(InstagramScreen.OTHER, emptySet(), nowMillis + 10_000L, settings)
 
         val decision =
             manager.buildDecision(
                 screen = InstagramScreen.REEL_VIEWER,
                 settings = settings,
-                nowMillis = nowMillis + 700L,
-            )
-
-        assertTrue(decision.shouldBlock)
-    }
-
-    @Test
-    fun `scrolling away from the dm-opened reel allowance re-blocks the viewer`() {
-        val manager = SessionStateManager()
-        val nowMillis = 50_000L
-
-        manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
-        manager.noteDmClick(nowMillis + 50L, "shared reel")
-        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
-
-        assertTrue(manager.clearDmReelAllowanceForViewerScroll(nowMillis + 150L))
-
-        val decision =
-            manager.buildDecision(
-                screen = InstagramScreen.REEL_VIEWER,
-                settings = settings,
-                nowMillis = nowMillis + 200L,
+                nowMillis = nowMillis + 10_200L,
             )
 
         assertTrue(decision.shouldBlock)
@@ -145,36 +123,45 @@ class SessionStateManagerTest {
 
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
         manager.noteDmClick(nowMillis + 50L, "shared reel")
-        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 1_400L, settings)
+        // Open the reel viewer well past the 5000ms pending-click window
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, emptySet(), nowMillis + 5_200L, settings)
 
         val decision =
             manager.buildDecision(
                 screen = InstagramScreen.REEL_VIEWER,
                 settings = settings,
-                nowMillis = nowMillis + 1_450L,
+                nowMillis = nowMillis + 5_250L,
             )
 
         assertTrue(decision.shouldBlock)
     }
 
     @Test
-    fun `different reel viewer blocks after the dm-opened signature changes`() {
+    fun `dm grace window allows reel viewing for configured duration`() {
         val manager = SessionStateManager()
         val nowMillis = 60_000L
 
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
         manager.noteDmClick(nowMillis + 50L, "shared reel")
-        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
-        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, otherReelSignature, nowMillis + 1_000L, settings)
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, emptySet(), nowMillis + 100L, settings)
 
-        val decision =
+        // Still within the 30s grace window
+        val allowedDecision =
             manager.buildDecision(
                 screen = InstagramScreen.REEL_VIEWER,
                 settings = settings,
-                nowMillis = nowMillis + 1_100L,
+                nowMillis = nowMillis + 20_000L,
             )
+        assertFalse(allowedDecision.shouldBlock)
 
-        assertTrue(decision.shouldBlock)
+        // Past the 30s grace window
+        val blockedDecision =
+            manager.buildDecision(
+                screen = InstagramScreen.REEL_VIEWER,
+                settings = settings,
+                nowMillis = nowMillis + 31_000L,
+            )
+        assertTrue(blockedDecision.shouldBlock)
     }
 
     @Test
@@ -202,7 +189,7 @@ class SessionStateManagerTest {
 
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
         manager.noteDmClick(nowMillis + 50L, "shared reel")
-        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, emptySet(), nowMillis + 100L, settings)
         manager.noteExplicitReelsEntryClick()
 
         val decision =
@@ -222,7 +209,7 @@ class SessionStateManagerTest {
 
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
         manager.noteDmClick(nowMillis + 50L, "shared reel")
-        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, sharedReelSignature, nowMillis + 100L, settings)
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, emptySet(), nowMillis + 100L, settings)
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis + 1_000L, settings)
         manager.noteExplicitReelsEntryClick()
 

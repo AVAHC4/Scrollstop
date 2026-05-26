@@ -10,10 +10,11 @@ import java.time.ZoneId
 class SessionStateManager {
 
     private var inDmContext: Boolean = false
+    private var recentDmContextUntilMillis: Long = 0L
+    private var lastDmContextAtMillis: Long = 0L
     private var pendingDmClickUntilMillis: Long = 0L
     private var dmGraceUntilMillis: Long = 0L
     private var dmAllowanceGrantedAtMillis: Long = 0L
-    private var dmAllowedViewerSignature: Set<String> = emptySet()
     private var explicitReelsEntryArmed: Boolean = false
     private var lastBlockedAtMillis: Long = 0L
     private var lastNonReelDetectedAtMillis: Long = 0L
@@ -24,8 +25,11 @@ class SessionStateManager {
 
     fun isInDmContext(): Boolean = inDmContext
 
+    fun isRecentlyInDmContext(nowMillis: Long): Boolean =
+        inDmContext || recentDmContextUntilMillis > nowMillis
+
     fun noteDmClick(nowMillis: Long, clickSummary: String) {
-        if (!inDmContext) {
+        if (!inDmContext && recentDmContextUntilMillis <= nowMillis) {
             return
         }
         pendingDmClickUntilMillis = nowMillis + PENDING_DM_CLICK_WINDOW_MILLIS
@@ -36,7 +40,6 @@ class SessionStateManager {
         pendingDmClickUntilMillis = 0L
         dmGraceUntilMillis = 0L
         dmAllowanceGrantedAtMillis = 0L
-        dmAllowedViewerSignature = emptySet()
     }
 
     fun hasActiveDmReelAllowance(nowMillis: Long): Boolean =
@@ -63,6 +66,7 @@ class SessionStateManager {
         explicitReelsEntryArmed = false
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun onScreenDetected(
         screen: InstagramScreen,
         viewerSignature: Set<String>,
@@ -70,7 +74,16 @@ class SessionStateManager {
         settings: AppSettings,
     ): SessionSnapshot {
         rollDay(nowMillis)
+        val wasDmContext = inDmContext
         inDmContext = screen == InstagramScreen.DM_LIST || screen == InstagramScreen.DM_THREAD
+
+        if (inDmContext) {
+            lastDmContextAtMillis = nowMillis
+            recentDmContextUntilMillis = nowMillis + RECENT_DM_CONTEXT_MILLIS
+        } else if (wasDmContext) {
+            // Just left DM — keep the recent-DM awareness alive
+            recentDmContextUntilMillis = nowMillis + RECENT_DM_CONTEXT_MILLIS
+        }
 
         if (!screen.isBlockTarget) {
             lastNonReelDetectedAtMillis = nowMillis
@@ -83,33 +96,25 @@ class SessionStateManager {
         ) {
             dmGraceUntilMillis = nowMillis + (settings.graceDurationSeconds * 1_000L)
             dmAllowanceGrantedAtMillis = nowMillis
-            dmAllowedViewerSignature = viewerSignature
             pendingDmClickUntilMillis = 0L
         }
 
-        if (
-            settings.allowDmOpenedReelsOnly &&
-            screen == InstagramScreen.REEL_VIEWER &&
-            dmGraceUntilMillis > nowMillis &&
-            dmAllowedViewerSignature.isNotEmpty() &&
-            viewerSignature.isNotEmpty() &&
-            !ReelViewerSignature.matches(dmAllowedViewerSignature, viewerSignature)
-        ) {
-            clearDmReelAllowance()
-        }
 
         if (!inDmContext) {
             if (screen == InstagramScreen.REEL_VIEWER) {
-                // Only preserve DM grace if we came directly from a DM screen.
-                // If we arrived here from any other surface (HOME, OTHER, REELS_TAB, etc.),
-                // this is NOT a DM-opened reel — clear the allowance.
+                // Preserve DM grace if we came from a DM screen recently.
+                // Check both the last non-viewer screen AND whether we were in
+                // DM context within the last few seconds (covers intermediate
+                // OTHER screens during DM→reel transitions).
                 val cameFromDm = lastNonViewerScreen == InstagramScreen.DM_LIST ||
-                                 lastNonViewerScreen == InstagramScreen.DM_THREAD
+                                 lastNonViewerScreen == InstagramScreen.DM_THREAD ||
+                                 recentDmContextUntilMillis > nowMillis
                 if (!cameFromDm) {
                     clearDmReelAllowance()
                 }
-            } else {
-                // On any non-REEL_VIEWER, non-DM surface: clear grace fully
+            } else if (screen != InstagramScreen.OTHER || recentDmContextUntilMillis <= nowMillis) {
+                // On non-REEL_VIEWER, non-DM surface: clear grace fully,
+                // UNLESS this is a transient OTHER screen and we recently left DMs
                 clearDmReelAllowance()
             }
         }
@@ -262,7 +267,8 @@ class SessionStateManager {
     }
 
     private companion object {
-        const val PENDING_DM_CLICK_WINDOW_MILLIS = 1_200L
+        const val PENDING_DM_CLICK_WINDOW_MILLIS = 5_000L
+        const val RECENT_DM_CONTEXT_MILLIS = 8_000L
         const val SAME_SURFACE_BLOCK_COOLDOWN_MILLIS = 150L
     }
 }
