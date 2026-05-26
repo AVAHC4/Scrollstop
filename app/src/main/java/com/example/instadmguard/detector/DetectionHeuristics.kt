@@ -152,4 +152,31 @@ object DetectionHeuristics {
 
         return corpus.any { it == "reels" || it == "clips" }
     }
+
+    /**
+     * Returns true if the click looks like it came from Instagram's bottom
+     * navigation bar (Home, Search, Reels, Create, Profile).
+     * These clicks should NOT be treated as DM reel interactions.
+     */
+    fun isBottomNavClick(summary: String): Boolean {
+        val corpus = normalize(summary.split('|'))
+
+        // If it looks like a DM reel interaction, it's NOT a nav click
+        if (matchedClues(corpus, dmSharedReelClickClues).isNotEmpty()) {
+            return false
+        }
+
+        // Check for navigation bar keywords
+        val navClues = listOf(
+            "home", "search", "explore", "create", "profile",
+            "reels", "clips", "notifications", "activity",
+            "tab_bar", "bottom_bar", "navigation_bar",
+        )
+
+        return corpus.any { word ->
+            word.contains("tab") ||
+                word.contains("navigation") ||
+                navClues.any { clue -> word == clue || word.contains(clue) }
+        }
+    }
 }

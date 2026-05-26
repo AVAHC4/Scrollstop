@@ -120,7 +120,18 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 return
             }
 
-            if (sessionStateManager.isInDmContext()) {
+            if (sessionStateManager.isRecentlyInDmContext(nowMillis)) {
+                // Don't arm DM clicks for bottom navigation bar taps
+                // (Home, Search, Reels, Create, Profile). These are
+                // intentional navigation AWAY from DMs.
+                if (DetectionHeuristics.isBottomNavClick(lastEventSummary)) {
+                    logDebug(
+                        screen = serviceStateStore.status.value.lastDetectedScreen,
+                        message = "Skipped DM click arm (nav click): $lastEventSummary",
+                    )
+                    return
+                }
+
                 sessionStateManager.noteDmClick(
                     nowMillis = nowMillis,
                     clickSummary = lastEventSummary,
