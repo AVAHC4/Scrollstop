@@ -196,7 +196,7 @@ class SessionStateManager {
                     shouldBlock = true,
                     reason = "Explicit reels button blocked",
                 )
-            } else if (hasGrantedDmReelAllowance(nowMillis)) {
+            } else if (screen == InstagramScreen.REEL_VIEWER && hasGrantedDmReelAllowance(nowMillis)) {
                 GuardDecision(
                     shouldBlock = false,
                     reason = "Allowed DM-opened reel within grace window",
