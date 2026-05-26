@@ -140,10 +140,12 @@ class SessionStateManagerTest {
     fun `dm grace window allows reel viewing for configured duration`() {
         val manager = SessionStateManager()
         val nowMillis = 60_000L
+        val viewerSignature = setOf("friend_creator", "shared reel caption")
 
         manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
         manager.noteDmClick(nowMillis + 50L, "shared reel")
-        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, emptySet(), nowMillis + 100L, settings)
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, viewerSignature, nowMillis + 100L, settings)
+        manager.onScreenDetected(InstagramScreen.REEL_VIEWER, viewerSignature, nowMillis + 1_000L, settings)
 
         // Still within the 30s grace window
         val allowedDecision =
@@ -162,6 +164,62 @@ class SessionStateManagerTest {
                 nowMillis = nowMillis + 31_000L,
             )
         assertTrue(blockedDecision.shouldBlock)
+    }
+
+    @Test
+    fun `dm allowance clears when the reel viewer signature changes`() {
+        val manager = SessionStateManager()
+        val nowMillis = 62_000L
+
+        manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
+        manager.noteDmClick(nowMillis + 50L, "shared reel")
+        manager.onScreenDetected(
+            InstagramScreen.REEL_VIEWER,
+            setOf("friend_creator", "shared reel caption"),
+            nowMillis + 100L,
+            settings,
+        )
+        manager.onScreenDetected(
+            InstagramScreen.REEL_VIEWER,
+            setOf("another_creator", "unrelated reel topic"),
+            nowMillis + 1_000L,
+            settings,
+        )
+
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REEL_VIEWER,
+                settings = settings,
+                nowMillis = nowMillis + 1_100L,
+            )
+
+        assertTrue(decision.shouldBlock)
+    }
+
+    @Test
+    fun `viewer scroll clears the dm allowance`() {
+        val manager = SessionStateManager()
+        val nowMillis = 63_000L
+
+        manager.onScreenDetected(InstagramScreen.DM_THREAD, emptySet(), nowMillis, settings)
+        manager.noteDmClick(nowMillis + 50L, "shared reel")
+        manager.onScreenDetected(
+            InstagramScreen.REEL_VIEWER,
+            setOf("friend_creator", "shared reel caption"),
+            nowMillis + 100L,
+            settings,
+        )
+
+        assertTrue(manager.clearDmReelAllowanceForViewerScroll(nowMillis + 500L))
+
+        val decision =
+            manager.buildDecision(
+                screen = InstagramScreen.REEL_VIEWER,
+                settings = settings,
+                nowMillis = nowMillis + 600L,
+            )
+
+        assertTrue(decision.shouldBlock)
     }
 
     @Test
@@ -252,7 +310,7 @@ class SessionStateManagerTest {
     }
 
     @Test
-    fun `general reels are allowed when dm-only mode is off and no daily limit is active`() {
+    fun `legacy relaxed mode still blocks general reels`() {
         val manager = SessionStateManager()
         val relaxedSettings = settings.copy(allowDmOpenedReelsOnly = false)
 
@@ -263,11 +321,11 @@ class SessionStateManagerTest {
                 nowMillis = 95_000L,
             )
 
-        assertFalse(decision.shouldBlock)
+        assertTrue(decision.shouldBlock)
     }
 
     @Test
-    fun `explicit reels entry does not override relaxed mode`() {
+    fun `explicit reels entry blocks even if legacy relaxed mode is requested`() {
         val manager = SessionStateManager()
         val relaxedSettings = settings.copy(allowDmOpenedReelsOnly = false)
 
@@ -280,11 +338,11 @@ class SessionStateManagerTest {
                 nowMillis = 96_000L,
             )
 
-        assertFalse(decision.shouldBlock)
+        assertTrue(decision.shouldBlock)
     }
 
     @Test
-    fun `general reels block when the daily limit is exhausted`() {
+    fun `daily limit setting cannot allow general reels`() {
         val manager = SessionStateManager()
         val limitedSettings =
             settings.copy(

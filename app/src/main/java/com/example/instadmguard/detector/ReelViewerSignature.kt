@@ -48,20 +48,31 @@ object ReelViewerSignature {
         candidate: Set<String>,
     ): Boolean {
         if (reference.isEmpty() || candidate.isEmpty()) {
-            return true
+            return false
         }
 
-        if ((reference intersect candidate).isNotEmpty()) {
-            return true
-        }
-
-        return candidate.any { candidateTerm ->
-            reference.any { referenceTerm ->
-                candidateTerm.length >= MIN_PARTIAL_MATCH_LENGTH &&
-                    referenceTerm.length >= MIN_PARTIAL_MATCH_LENGTH &&
-                    (candidateTerm.contains(referenceTerm) || referenceTerm.contains(candidateTerm))
+        val matchingTermCount =
+            reference.count { referenceTerm ->
+                candidate.any { candidateTerm ->
+                    termsMatch(referenceTerm, candidateTerm)
+                }
             }
+
+        val requiredMatchingTerms = if (reference.size >= 2) 2 else 1
+        return matchingTermCount >= requiredMatchingTerms
+    }
+
+    private fun termsMatch(
+        referenceTerm: String,
+        candidateTerm: String,
+    ): Boolean {
+        if (referenceTerm == candidateTerm) {
+            return true
         }
+
+        return candidateTerm.length >= MIN_PARTIAL_MATCH_LENGTH &&
+            referenceTerm.length >= MIN_PARTIAL_MATCH_LENGTH &&
+            (candidateTerm.contains(referenceTerm) || referenceTerm.contains(candidateTerm))
     }
 
     private fun isIgnoredSignatureTerm(value: String): Boolean {

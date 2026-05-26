@@ -113,7 +113,6 @@ fun MainScreen(viewModel: MainViewModel) {
                             }
                         },
                         onMasterEnabledChanged = viewModel::setMasterEnabled,
-                        onDmOnlyChanged = viewModel::setAllowDmOpenedReelsOnly,
                         onBlockModeChanged = viewModel::setBlockMode,
                         onGraceDurationChanged = viewModel::setGraceDurationSeconds,
                         onPause5Minutes = { viewModel.pauseForMinutes(5) },
@@ -121,8 +120,6 @@ fun MainScreen(viewModel: MainViewModel) {
                         onResumeProtection = viewModel::resumeProtection,
                         onDebugModeChanged = viewModel::setDebugMode,
                         onOverlayDismissibleChanged = viewModel::setOverlayDismissible,
-                        onDailyLimitEnabledChanged = viewModel::setDailyLimitEnabled,
-                        onDailyLimitMinutesChanged = viewModel::setDailyLimitMinutes,
                     )
 
                 else ->
@@ -143,7 +140,6 @@ private fun SettingsTab(
     onOpenAccessibility: () -> Unit,
     onOpenInstagram: () -> Unit,
     onMasterEnabledChanged: (Boolean) -> Unit,
-    onDmOnlyChanged: (Boolean) -> Unit,
     onBlockModeChanged: (BlockMode) -> Unit,
     onGraceDurationChanged: (Int) -> Unit,
     onPause5Minutes: () -> Unit,
@@ -151,8 +147,6 @@ private fun SettingsTab(
     onResumeProtection: () -> Unit,
     onDebugModeChanged: (Boolean) -> Unit,
     onOverlayDismissibleChanged: (Boolean) -> Unit,
-    onDailyLimitEnabledChanged: (Boolean) -> Unit,
-    onDailyLimitMinutesChanged: (Int) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -199,11 +193,9 @@ private fun SettingsTab(
                         checked = uiState.settings.masterEnabled,
                         onCheckedChange = onMasterEnabledChanged,
                     )
-                    SwitchRow(
-                        title = "Allow DM-opened reels only",
-                        subtitle = "A reel opened directly from a DM gets a short grace window.",
-                        checked = uiState.settings.allowDmOpenedReelsOnly,
-                        onCheckedChange = onDmOnlyChanged,
+                    StatusLine(
+                        "Reels policy",
+                        "Only DM-opened reels are allowed. Reels tab/button always blocks.",
                     )
                 }
             }
@@ -317,33 +309,6 @@ private fun SettingsTab(
             }
         }
 
-        item {
-            Card {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text("Experimental", style = MaterialTheme.typography.titleMedium)
-                    SwitchRow(
-                        title = "Daily general-reels limit",
-                        subtitle = "Ignored while DM-only mode is on. When DM-only is off, this allows a small capped amount of reels time per day.",
-                        checked = uiState.settings.dailyLimitEnabled,
-                        onCheckedChange = onDailyLimitEnabledChanged,
-                    )
-                    StepperRow(
-                        title = "Daily limit",
-                        subtitle = "Allowed general reels time per day.",
-                        value = "${uiState.settings.dailyLimitMinutes} minutes",
-                        onDecrement = {
-                            onDailyLimitMinutesChanged(uiState.settings.dailyLimitMinutes - 1)
-                        },
-                        onIncrement = {
-                            onDailyLimitMinutesChanged(uiState.settings.dailyLimitMinutes + 1)
-                        },
-                    )
-                }
-            }
-        }
     }
 }
 

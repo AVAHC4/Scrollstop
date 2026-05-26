@@ -138,7 +138,7 @@ object DetectionHeuristics {
     fun isExplicitReelsEntryClick(summary: String): Boolean {
         val corpus = normalize(summary.split('|'))
 
-        if (matchedClues(corpus, dmSharedReelClickClues).isNotEmpty()) {
+        if (isDmSharedReelClick(corpus)) {
             return false
         }
 
@@ -153,6 +153,12 @@ object DetectionHeuristics {
         return corpus.any { it == "reels" || it == "clips" }
     }
 
+    fun isDmSharedReelClick(summary: String): Boolean =
+        isDmSharedReelClick(normalize(summary.split('|')))
+
+    private fun isDmSharedReelClick(corpus: Collection<String>): Boolean =
+        matchedClues(corpus, dmSharedReelClickClues).isNotEmpty()
+
     /**
      * Returns true if the click looks like it came from Instagram's bottom
      * navigation bar (Home, Search, Reels, Create, Profile).
@@ -162,7 +168,7 @@ object DetectionHeuristics {
         val corpus = normalize(summary.split('|'))
 
         // If it looks like a DM reel interaction, it's NOT a nav click
-        if (matchedClues(corpus, dmSharedReelClickClues).isNotEmpty()) {
+        if (isDmSharedReelClick(corpus)) {
             return false
         }
 

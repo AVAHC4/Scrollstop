@@ -15,6 +15,7 @@ import com.example.instadmguard.data.SettingsRepository
 import com.example.instadmguard.detector.AccessibilityNodeSnapshotBuilder
 import com.example.instadmguard.detector.DetectionHeuristics
 import com.example.instadmguard.detector.InstagramScreenDetector
+import com.example.instadmguard.detector.ReelViewerSignature
 import com.example.instadmguard.model.BlockMode
 import com.example.instadmguard.model.InstagramScreen
 import com.example.instadmguard.util.InstagramConstants
@@ -132,6 +133,14 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                     return
                 }
 
+                if (!DetectionHeuristics.isDmSharedReelClick(lastEventSummary)) {
+                    logDebug(
+                        screen = serviceStateStore.status.value.lastDetectedScreen,
+                        message = "Skipped DM click arm (not a shared reel click): $lastEventSummary",
+                    )
+                    return
+                }
+
                 sessionStateManager.noteDmClick(
                     nowMillis = nowMillis,
                     clickSummary = lastEventSummary,
@@ -144,6 +153,17 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
                 return
             }
             return
+        }
+
+        if (
+            event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED &&
+            lastDetectedScreen == InstagramScreen.REEL_VIEWER &&
+            sessionStateManager.clearDmReelAllowanceForViewerScroll(nowMillis)
+        ) {
+            logDebug(
+                screen = lastDetectedScreen,
+                message = "Cleared DM reel allowance after reel viewer scroll",
+            )
         }
     }
 
@@ -257,6 +277,12 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         val settings = settingsRepository.settings.value
         val nowMillis = System.currentTimeMillis()
         val detection = detector.detect(snapshot)
+        val viewerSignature =
+            if (detection.screen == InstagramScreen.REEL_VIEWER) {
+                ReelViewerSignature.fromSnapshot(snapshot)
+            } else {
+                emptySet()
+            }
         val previousDetectedScreen = serviceStateStore.status.value.lastDetectedScreen
 
         if (homeNavigationPending && !detection.screen.isBlockTarget) {
@@ -269,7 +295,7 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         val sessionSnapshot =
             sessionStateManager.onScreenDetected(
                 screen = detection.screen,
-                viewerSignature = emptySet(),
+                viewerSignature = viewerSignature,
                 nowMillis = nowMillis,
                 settings = settings,
             )
@@ -313,55 +339,12 @@ class InstagramBlockAccessibilityService : AccessibilityService() {
         )
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun syncDailyUsageTicker(
         settings: AppSettings,
         screen: InstagramScreen,
     ) {
-        val shouldTrack =
-            settings.dailyLimitEnabled &&
-                !settings.allowDmOpenedReelsOnly &&
-                screen.isBlockTarget
-
-        if (!shouldTrack) {
-            stopDailyUsageTicker()
-            return
-        }
-
-        if (dailyUsageTickerJob != null) {
-            return
-        }
-
-        dailyUsageTickerJob =
-            serviceScope.launch {
-                while (isActive) {
-                    delay(1_000L)
-                    val nowMillis = System.currentTimeMillis()
-                    sessionStateManager.addDailyUsageSeconds(nowMillis, 1)
-                    val usedSeconds = sessionStateManager.dailyUsageSeconds(nowMillis)
-                    serviceStateStore.update { current ->
-                        current.copy(dailyLimitUsedSeconds = usedSeconds)
-                    }
-
-                    val liveSettings = settingsRepository.settings.value
-                    val currentScreen = serviceStateStore.status.value.lastDetectedScreen
-                    val liveDecision =
-                        sessionStateManager.buildDecision(
-                            screen = currentScreen,
-                            settings = liveSettings,
-                            nowMillis = nowMillis,
-                        )
-
-                    if (liveDecision.shouldBlock && currentScreen.isBlockTarget) {
-                        applyDecision(
-                            decision = liveDecision,
-                            settings = liveSettings,
-                            screen = currentScreen,
-                            previousScreen = currentScreen,
-                            nowMillis = nowMillis,
-                        )
-                    }
-                }
-            }
+        stopDailyUsageTicker()
     }
 
     private fun stopDailyUsageTicker() {

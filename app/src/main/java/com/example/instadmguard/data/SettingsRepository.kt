@@ -41,9 +41,10 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     suspend fun setAllowDmOpenedReelsOnly(enabled: Boolean) {
         context.appSettingsDataStore.edit { preferences ->
-            preferences[Keys.ALLOW_DM_ONLY] = enabled
+            preferences[Keys.ALLOW_DM_ONLY] = true
         }
     }
 
@@ -84,9 +85,10 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     suspend fun setDailyLimitEnabled(enabled: Boolean) {
         context.appSettingsDataStore.edit { preferences ->
-            preferences[Keys.DAILY_LIMIT_ENABLED] = enabled
+            preferences[Keys.DAILY_LIMIT_ENABLED] = false
         }
     }
 
@@ -106,13 +108,13 @@ class SettingsRepository(private val context: Context) {
 
         return AppSettings(
             masterEnabled = preferences[Keys.MASTER_ENABLED] ?: true,
-            allowDmOpenedReelsOnly = preferences[Keys.ALLOW_DM_ONLY] ?: true,
+            allowDmOpenedReelsOnly = true,
             blockMode = blockMode,
             graceDurationSeconds = (preferences[Keys.GRACE_DURATION_SECONDS] ?: 30).coerceIn(5, 120),
             pauseUntilMillis = preferences[Keys.PAUSE_UNTIL_MILLIS] ?: 0L,
             debugMode = preferences[Keys.DEBUG_MODE] ?: false,
             overlayDismissible = preferences[Keys.OVERLAY_DISMISSIBLE] ?: false,
-            dailyLimitEnabled = preferences[Keys.DAILY_LIMIT_ENABLED] ?: false,
+            dailyLimitEnabled = false,
             dailyLimitMinutes = (preferences[Keys.DAILY_LIMIT_MINUTES] ?: 10).coerceIn(1, 60),
         )
     }

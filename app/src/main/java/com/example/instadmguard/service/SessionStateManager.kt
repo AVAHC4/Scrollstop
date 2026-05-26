@@ -15,6 +15,7 @@ class SessionStateManager {
     private var pendingDmClickUntilMillis: Long = 0L
     private var dmGraceUntilMillis: Long = 0L
     private var dmAllowanceGrantedAtMillis: Long = 0L
+    private var dmAllowedViewerSignature: Set<String> = emptySet()
     private var explicitReelsEntryArmed: Boolean = false
     private var lastBlockedAtMillis: Long = 0L
     private var lastNonReelDetectedAtMillis: Long = 0L
@@ -40,6 +41,7 @@ class SessionStateManager {
         pendingDmClickUntilMillis = 0L
         dmGraceUntilMillis = 0L
         dmAllowanceGrantedAtMillis = 0L
+        dmAllowedViewerSignature = emptySet()
     }
 
     fun hasActiveDmReelAllowance(nowMillis: Long): Boolean =
@@ -97,16 +99,26 @@ class SessionStateManager {
             clearDmReelAllowance()
         }
 
-        if (
-            settings.allowDmOpenedReelsOnly &&
+        val grantedDmAllowanceNow =
             screen == InstagramScreen.REEL_VIEWER &&
-            pendingDmClickUntilMillis >= nowMillis
-        ) {
+                pendingDmClickUntilMillis >= nowMillis
+
+        if (grantedDmAllowanceNow) {
             dmGraceUntilMillis = nowMillis + (settings.graceDurationSeconds * 1_000L)
             dmAllowanceGrantedAtMillis = nowMillis
+            dmAllowedViewerSignature = viewerSignature
             pendingDmClickUntilMillis = 0L
         }
 
+        if (
+            screen == InstagramScreen.REEL_VIEWER &&
+            !grantedDmAllowanceNow &&
+            dmGraceUntilMillis > nowMillis &&
+            viewerSignature.isNotEmpty() &&
+            !ReelViewerSignature.matches(dmAllowedViewerSignature, viewerSignature)
+        ) {
+            clearDmReelAllowance()
+        }
 
         if (!inDmContext) {
             if (screen == InstagramScreen.REEL_VIEWER) {
@@ -154,12 +166,9 @@ class SessionStateManager {
         return dailyUsageSeconds
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun dailyLimitRemainingSeconds(settings: AppSettings, nowMillis: Long): Int? {
-        if (!settings.dailyLimitEnabled || settings.allowDmOpenedReelsOnly) {
-            return null
-        }
-        val total = settings.dailyLimitMinutes * 60
-        return (total - dailyUsageSeconds(nowMillis)).coerceAtLeast(0)
+        return null
     }
 
     fun buildDecision(
@@ -190,42 +199,20 @@ class SessionStateManager {
             )
         }
 
-        if (settings.allowDmOpenedReelsOnly) {
-            return if (hasPendingExplicitReelsEntry()) {
-                GuardDecision(
-                    shouldBlock = true,
-                    reason = "Explicit reels button blocked",
-                )
-            } else if (screen == InstagramScreen.REEL_VIEWER && hasGrantedDmReelAllowance(nowMillis)) {
-                GuardDecision(
-                    shouldBlock = false,
-                    reason = "Allowed DM-opened reel within grace window",
-                )
-            } else {
-                GuardDecision(
-                    shouldBlock = true,
-                    reason = "Only DM-opened reels are allowed",
-                )
-            }
-        }
-
-        val remainingDailyLimit = dailyLimitRemainingSeconds(settings, nowMillis)
-        if (remainingDailyLimit != null && remainingDailyLimit <= 0) {
-            return GuardDecision(
+        return if (hasPendingExplicitReelsEntry()) {
+            GuardDecision(
                 shouldBlock = true,
-                reason = "Daily reels limit reached",
+                reason = "Explicit reels button blocked",
             )
-        }
-
-        return if (remainingDailyLimit != null) {
+        } else if (screen == InstagramScreen.REEL_VIEWER && hasGrantedDmReelAllowance(nowMillis)) {
             GuardDecision(
                 shouldBlock = false,
-                reason = "General reels allowed within daily limit",
+                reason = "Allowed DM-opened reel within grace window",
             )
         } else {
             GuardDecision(
-                shouldBlock = false,
-                reason = "General reels allowed",
+                shouldBlock = true,
+                reason = "Only DM-opened reels are allowed",
             )
         }
     }

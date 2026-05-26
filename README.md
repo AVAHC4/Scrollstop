@@ -1,6 +1,6 @@
 # InstaDMGuard
 
-InstaDMGuard is a personal-use Android accessibility app that blocks Instagram reels by default and only grants short-lived access to reels that appear to have been opened directly from Instagram DMs.
+InstaDMGuard is a personal-use Android accessibility app that permanently blocks Instagram reels except for short-lived access to reels that appear to have been opened directly from Instagram DMs.
 
 ## What it does
 
@@ -15,9 +15,9 @@ InstaDMGuard is a personal-use Android accessibility app that blocks Instagram r
   - a click inside that DM context
   - a reel viewer opening immediately after the click
 - Expires the DM reel allowance after the configured grace window
+- Clears the DM reel allowance when the viewer scrolls or the detected reel signature changes
 - Clears the DM allowance early when navigation clearly moves into broader reel entry points like the Reels tab, Explore reels, or Home-feed reel surfaces
 - Supports temporary pauses for 5 or 15 minutes
-- Includes an experimental daily-limit mode for general reels when DM-only mode is turned off
 - Shows a debug view with the last 20 detector/service events
 
 ## Project structure
@@ -111,23 +111,22 @@ Use the release APK for manual sideload on-device when you want to replace the e
 ## Test the DM-only reel allowance
 
 1. Keep `Master protection` on.
-2. Keep `Allow DM-opened reels only` on.
-3. Set `Block mode` to `Overlay + back` for the clearest first test.
-4. Open Instagram Home or Reels and verify general reels get blocked.
+2. Set `Block mode` to `Overlay + back` for the clearest first test.
+3. Open Instagram Home or Reels and verify general reels get blocked.
+4. Tap the Instagram Reels button/tab and verify it gets blocked.
 5. Open Instagram DMs.
 6. Open a DM thread sent by a friend that contains a reel preview or reel link.
 7. Tap the reel from inside that DM thread.
 8. The reel should stay available for roughly the configured grace duration.
-9. Wait until the grace window expires, or move into broader reel navigation.
+9. Swipe/scroll to another reel, wait until the grace window expires, or move into broader reel navigation.
 10. Verify the service blocks again.
 
 ## Limitations
 
 - Instagram changes its UI often. Accessibility text, content descriptions, and view IDs can change without notice.
 - The DM-to-reel allow flow is heuristic-based. It works by detecting a DM context, a click inside that context, and a reel viewer opening immediately after.
-- If Instagram opens a DM-linked reel in the same viewer used by general reels, the app cannot perfectly distinguish every swipe after the initial DM-opened reel. The grace timer is the main fallback.
+- If Instagram opens a DM-linked reel in the same viewer used by general reels, the app uses viewer scroll events and accessible reel text signatures to revoke the allowance when it can detect movement away from the original DM-opened reel.
 - Accessibility overlays and global back behavior can feel aggressive on rapid UI transitions. The service already debounces events and rate-limits repeated back actions.
-- The experimental daily-limit mode is intentionally secondary to the main DM-only workflow.
 
 ## How to tweak detection strings later
 
