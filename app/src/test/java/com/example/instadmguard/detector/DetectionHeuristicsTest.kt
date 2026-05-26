@@ -59,4 +59,19 @@ class DetectionHeuristicsTest {
             ),
         )
     }
+
+    @Test
+    fun `recognizes dm shared reel click summaries`() {
+        assertTrue(
+            DetectionHeuristics.isDmSharedReelClick(
+                "Shared a reel | Tap to watch | Reel",
+            ),
+        )
+    }
+
+    @Test
+    fun `does not arm dm allowance for blank or generic clicks`() {
+        assertFalse(DetectionHeuristics.isDmSharedReelClick(""))
+        assertFalse(DetectionHeuristics.isDmSharedReelClick("Profile picture | Active now"))
+    }
 }
